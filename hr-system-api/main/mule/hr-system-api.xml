@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+      http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <http:listener-config name="HTTP_Listener_config"
+                          doc:name="HTTP Listener config"
+                          doc:id="299bfdc0-d68d-40ec-be31-7b976f66853f">
+        <http:listener-connection host="0.0.0.0" port="8083"/>
+    </http:listener-config>
+
+    <flow name="hr-system-apiFlow"
+          doc:id="87e29d10-9850-4265-9b48-f35215ebb523">
+
+        <http:listener doc:name="Listener"
+                       doc:id="b81947b8-a912-4efb-a2ec-510ab2275c59"
+                       config-ref="HTTP_Listener_config"
+                       path="/hr/verify/{employeeId}"/>
+
+        <set-variable value="#[attributes.uriParams.employeeId]"
+                      doc:name="Set Variable"
+                      doc:id="97c51520-9921-4270-bec5-d9879fc7b9f3"
+                      variableName="employeeId"/>
+
+        <choice doc:name="Choice"
+                doc:id="ed71e202-20c6-4ca8-8ba9-6ae0492b51b6">
+
+            <!-- EMP9999 = Simulated HR failure -->
+            <when expression='#[vars.employeeId == "EMP9999"]'>
+                <raise-error type="HR:UNAVAILABLE"
+                             description="HR System is temporarily unavailable"/>
+            </when>
+
+            <!-- EMP1002 = Ineligible employee -->
+            <when expression='#[vars.employeeId == "EMP1002"]'>
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    employeeId: vars.employeeId,
+    eligible: false,
+    employmentStatus: "REJECTED"
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </when>
+
+            <!-- All other employee IDs = Eligible -->
+            <otherwise>
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    employeeId: vars.employeeId,
+    eligible: true,
+    employmentStatus: "APPROVED"
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </otherwise>
+
+        </choice>
+
+    </flow>
+
+</mule>
