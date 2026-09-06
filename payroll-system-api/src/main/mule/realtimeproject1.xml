@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="1daf1133-8cb5-4247-9187-ec43d3dc6ffe" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="dbfb94af-1350-434c-93a8-25e2523d21a8" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="Jeevaakash123@" database="student" />
+	</db:config>
+	<flow name="realtimeproject1Flow" doc:id="ea263266-cfeb-4b7f-a331-ce46df863c37" >
+		<http:listener doc:name="Listener" doc:id="b59583de-6f2b-4b79-afc2-08f4e946b0b2" config-ref="HTTP_Listener_config" path="payroll">
+			<http:response statusCode="#[vars.Hr_status default 200]" />
+			<http:error-response statusCode="#[vars.Hr_status default 500]" >
+				<http:body ><![CDATA[#[payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<choice doc:name="Choice" doc:id="11654225-8834-41e0-adb9-ab46419a1ff6" >
+			<when expression='#[attributes.queryParams.name=="yes"]'>
+				<ee:transform doc:name="Transform Message" doc:id="5605be3f-e741-47c3-968e-16c3bf082981">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	employee_id:attributes.queryParams.employee_id as Number,
+	name:attributes.queryParams.name,
+	salary:attributes.queryParams.salary as Number,
+	status:attributes.queryParams.status
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<db:insert doc:name="Insert" doc:id="1a75a8bf-58e8-489d-b9b9-843036e05a19" config-ref="Database_Config">
+					<db:sql ><![CDATA[insert into payroll(employee_id,name,salary,status) values(:employee_id,:name,:salary,:status)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[payload]]]></db:input-parameters>
+				</db:insert>
+				<ee:transform doc:name="Transform Message" doc:id="60cf6dc0-1355-4a52-989e-d9f0fd83e550" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message":"Inserted Successfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<set-variable value="500" doc:name="Set Variable" doc:id="6458ed38-823b-4d90-a6fb-7be2a9b380d8" variableName="Hr_status"/>
+				<raise-error doc:name="Raise error" doc:id="53868ab7-91a3-46ce-8856-871838bf35c2" type="APP:HR_REJECTED" description="Employee rejected by HR" />
+			</otherwise>
+		</choice>
+		<error-handler>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="575b6a83-dc10-45a3-92f2-d97dd037e3cc" >
+				<ee:transform doc:name="Transform Message" doc:id="e47bffdc-f840-413e-a13d-0c00cb39a6d0">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status":400,
+	"message":"rejected"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>
