@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:amqp="http://www.mulesoft.org/schema/mule/amqp" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/amqp http://www.mulesoft.org/schema/mule/amqp/current/mule-amqp.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="2364d97f-677a-4899-954f-0871afb195fc" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<amqp:config name="AMQP_Config" doc:name="AMQP Config" doc:id="4d1551b4-b345-4270-bbe7-d18b85e6c6f2" >
+		<amqp:connection host="localhost" port="5672" username="Saraswathy" password="Saraswathy_17" />
+	</amqp:config>
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="aa4cf870-9058-4e51-9105-f9f282ee0f40" >
+		<email:smtps-connection host="smtp.gmail.com" user="saraswathygopalakrishnan1706@gmail.com" password="fxqz mutt uhiy eewn" >
+			<tls:context >
+				<tls:trust-store type="jceks" insecure="true" />
+			</tls:context>
+		</email:smtps-connection>
+	</email:smtp-config>
+	<flow name="notification-serviceFlow" doc:id="119be676-0a50-49ec-a96d-44d0b0f1719c" >
+		<http:listener doc:name="Listener" doc:id="7e4fc1f5-d299-4675-9078-44f0ce698d8c" config-ref="HTTP_Listener_config" path="/notification"/>
+		<ee:transform doc:name="Transform Message" doc:id="f8a7cbe9-fc7b-4ffd-9704-24d7db7b7058" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    eventType: "EMPLOYEE_ONBOARDED",
+    eventVersion: "1.0",
+    employee: {
+        employeeId: payload.employee_id,
+        name: payload.name,
+        salary: payload.salary,
+        status: payload.status
+    },
+    notification: {
+        "type": "ONBOARDING_SUCCESS",
+        "message": "Employee onboarding completed successfully"
+    }
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="575ddf83-ef2c-4032-96f6-7cbccc63b870" message="#[payload]"/>
+		<amqp:publish doc:name="Publish" doc:id="c596b9c9-00a2-4707-aa45-ef7d2bd349c7" config-ref="AMQP_Config" deliveryMode="PERSISTENT" mandatory="true">
+			<amqp:routing-keys >
+				<amqp:routing-key value="test-queue" />
+			</amqp:routing-keys>
+			<amqp:message >
+				<amqp:properties contentType="application/json" expirationTimeUnit="SECONDS"/>
+			</amqp:message>
+		</amqp:publish>
+	</flow>
+	<flow name="notification-serviceFlow1" doc:id="ac472038-4fdc-49c5-bb4a-ab71e439d6dd" >
+		<amqp:listener doc:name="Listener" doc:id="7693ceca-413d-42f7-b9a8-604ae8c01813" config-ref="AMQP_Config" queueName="test-queue" ackMode="AUTO"/>
+		<logger level="INFO" doc:name="Logger" doc:id="8e2d0bcc-a8f9-4a5f-a718-5344efdcd26c" message="#[payload]"/>
+		<email:send doc:name="Send" doc:id="6257c450-1c59-42d7-9c78-aad283b2f6e7" config-ref="Email_SMTP" fromAddress="saraswathygopalakrishnan1706@gmail.com" subject="Employee Onboarding Successful">
+			<email:to-addresses >
+				<email:to-address value="vtu24364@veltech.edu.in" />
+			</email:to-addresses>
+			<email:bcc-addresses />
+			<email:body >
+				<email:content ><![CDATA[Employee onboarding completed successfully.
+
+Employee ID: #[payload.employee.employeeId]
+Name: #[payload.employee.name]
+Salary: #[payload.employee.salary]
+Status: #[payload.employee.status]]]></email:content>
+			</email:body>
+		</email:send>
+	</flow>
+</mule>
