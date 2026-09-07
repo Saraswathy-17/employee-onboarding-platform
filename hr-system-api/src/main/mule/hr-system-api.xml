@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+      http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <http:listener-config name="HTTP_Listener_config"
+                          doc:name="HTTP Listener config"
+                          doc:id="299bfdc0-d68d-40ec-be31-7b976f66853f">
+        <http:listener-connection host="0.0.0.0" port="8083"/>
+    </http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="352d9ca2-f961-400b-8c51-2ea61527a6ae" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="vtu25053" database="hr_database" />
+	</db:config>
+	<flow name="hr-system-apiFlow"
+          doc:id="87e29d10-9850-4265-9b48-f35215ebb523">
+
+        <http:listener doc:name="Listener"
+                       doc:id="b81947b8-a912-4efb-a2ec-510ab2275c59"
+                       config-ref="HTTP_Listener_config"
+                       path="/employees">
+			<http:error-response >
+				<http:body ><![CDATA[#[payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<db:select doc:name="Select" doc:id="68c674a8-dbf2-4754-a3ab-cf6df7021ce5" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT employee_id, name, department, employment_type, status
+FROM employeess
+WHERE employee_id = :employee_id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    employee_id: attributes.queryParams.employee_id 
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="cddefa8f-9490-40f1-afe7-9a720f482d8c">
+			<when expression='#[payload[0].status == "ACTIVE"]'>
+				<ee:transform doc:name="Transform Message" doc:id="d2ab1254-effe-419e-97a7-0cd22ccf2897" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[payload[0].status=="INACTIVE"]'>
+				<ee:transform doc:name="Transform Message" doc:id="f19347c1-d499-4ceb-b9c5-fe67a3bec06d">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message":"rejected"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<raise-error doc:name="Raise error" doc:id="ee190582-d327-4ab4-873a-9925c3db3d60" type="APP:INVALID_MEMBER" description="INVALID USER" />
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="1e54d331-c13b-4c0a-8b28-498d93908092" type="DB:CONNECTIVITY">
+				<ee:transform doc:name="Transform Message" doc:id="38a89ca6-5c61-4369-b257-90bd25e64750" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message:"issue in DB connectivity"
+}
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="97d9593c-b3cc-419e-a700-8494212d7970" type="DB:BAD_SQL_SYNTAX">
+				<ee:transform doc:name="Transform Message" doc:id="09bb1aa4-34f1-4397-bb8e-628b2713b368" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message:"bad SQL syntax"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+
+    </flow>
+
+</mule>
