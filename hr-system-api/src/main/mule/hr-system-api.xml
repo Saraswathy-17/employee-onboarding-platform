@@ -19,6 +19,9 @@ http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/cu
 	<db:config name="Database_Config" doc:name="Database Config" doc:id="352d9ca2-f961-400b-8c51-2ea61527a6ae" >
 		<db:my-sql-connection host="localhost" port="3306" user="root" password="vtu25053" database="hr_database" />
 	</db:config>
+	<db:config name="Database_Config1" doc:name="Database Config" doc:id="93b2b04a-d114-4db0-8075-3d2113b2d19d" >
+		<db:my-sql-connection host="mysql-99dcb85-mulesoft123.h.aivencloud.com" port="28418" user="avnadmin" password="AVNS_lShfQP0nFd2VDeeuPO9" database="employee" />
+	</db:config>
 	<flow name="hr-system-apiFlow"
           doc:id="87e29d10-9850-4265-9b48-f35215ebb523">
 
@@ -30,39 +33,56 @@ http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/cu
 				<http:body ><![CDATA[#[payload]]]></http:body>
 			</http:error-response>
 		</http:listener>
-		<db:select doc:name="Select" doc:id="68c674a8-dbf2-4754-a3ab-cf6df7021ce5" config-ref="Database_Config">
-			<db:sql ><![CDATA[SELECT employee_id, name, department, employment_type, status
-FROM employeess
-WHERE employee_id = :employee_id]]></db:sql>
+		<set-variable value="#[attributes.queryParams.employeeId]" doc:name="Set Variable" doc:id="cc3b93e6-d753-4c00-945e-23565beb946c" variableName="employeeId"/>
+		<set-variable value="#[attributes.queryParams.status]" doc:name="Set Variable" doc:id="eaa4a7f5-a940-4aaa-bbaf-18f86b5b1664" variableName="status"/>
+		<db:select doc:name="Select" doc:id="68c674a8-dbf2-4754-a3ab-cf6df7021ce5" config-ref="Database_Config1">
+			<db:sql ><![CDATA[SELECT employeeId,endDate
+FROM employee_requests
+WHERE employeeId = :employeeId]]></db:sql>
 			<db:input-parameters ><![CDATA[#[{
-    employee_id: attributes.queryParams.employee_id 
+    employeeId: vars.employeeId 
 }]]]></db:input-parameters>
 		</db:select>
 		<choice doc:name="Choice" doc:id="cddefa8f-9490-40f1-afe7-9a720f482d8c">
-			<when expression='#[payload[0].status == "ACTIVE"]'>
+			<when expression='#[payload[0].endDate == null]'>
 				<ee:transform doc:name="Transform Message" doc:id="d2ab1254-effe-419e-97a7-0cd22ccf2897" >
 					<ee:message >
 						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
-payload]]></ee:set-payload>
+{
+    employeeId: vars.employeeId,
+    status: "Active"
+}]]></ee:set-payload>
 					</ee:message>
 				</ee:transform>
+				<db:insert doc:name="Insert" doc:id="a14a2652-1f9f-44b3-8993-e1e06f2be6af" config-ref="Database_Config1">
+					<db:sql ><![CDATA[INSERT INTO hr (employeeId, status)
+VALUES (:employeeId, :status)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	employeeId: payload.employeeId,
+    status: payload.status
+}]]]></db:input-parameters>
+				</db:insert>
 			</when>
-			<when expression='#[payload[0].status=="INACTIVE"]'>
+			<otherwise>
 				<ee:transform doc:name="Transform Message" doc:id="f19347c1-d499-4ceb-b9c5-fe67a3bec06d">
 					<ee:message>
 						<ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
-	"message":"rejected"
-}]]></ee:set-payload>
+    employeeId: vars.employeeId,
+    status: "rejected"
+}
+]]></ee:set-payload>
 					</ee:message>
 				</ee:transform>
-			</when>
-			<otherwise>
-				<raise-error doc:name="Raise error" doc:id="ee190582-d327-4ab4-873a-9925c3db3d60" type="APP:INVALID_MEMBER" description="INVALID USER" />
+				<db:insert doc:name="Insert" doc:id="fc03226e-cb48-4492-b191-e32dd0fcfee0" config-ref="Database_Config1">
+					<db:sql ><![CDATA[INSERT INTO hr (employeeId, status)
+VALUES (:employeeId, :status)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[payload]]]></db:input-parameters>
+				</db:insert>
 			</otherwise>
 		</choice>
 		<error-handler >

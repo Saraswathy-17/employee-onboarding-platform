@@ -12,30 +12,42 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 	<db:config name="Database_Config" doc:name="Database Config" doc:id="dbfb94af-1350-434c-93a8-25e2523d21a8" >
 		<db:my-sql-connection host="localhost" port="3306" user="root" password="Jeevaakash123@" database="student" />
 	</db:config>
+	<db:config name="Database_Config1" doc:name="Database Config" doc:id="422a347f-c4c9-4475-8f00-18e52c50a506" >
+		<db:my-sql-connection host="mysql-99dcb85-mulesoft123.h.aivencloud.com" port="28418" user="avnadmin" password="AVNS_lShfQP0nFd2VDeeuPO9" database="employee" />
+	</db:config>
 	<flow name="realtimeproject1Flow" doc:id="ea263266-cfeb-4b7f-a331-ce46df863c37" >
 		<http:listener doc:name="Listener" doc:id="b59583de-6f2b-4b79-afc2-08f4e946b0b2" config-ref="HTTP_Listener_config" path="payroll">
-			<http:response statusCode="#[vars.Hr_status default 200]" />
-			<http:error-response statusCode="#[vars.Hr_status default 500]" >
+			<http:response statusCode="#[vars.hr default 200]" />
+			<http:error-response statusCode="#[vars.hr default 400]">
 				<http:body ><![CDATA[#[payload]]]></http:body>
 			</http:error-response>
 		</http:listener>
+		<set-variable value="#[attributes.queryParams.employeeId]" doc:name="Set Variable" doc:id="d0ab262b-5087-4aa7-abb3-0123404574d2" variableName="employeeId"/>
+		<set-variable value="#[attributes.queryParams.name]" doc:name="Set Variable" doc:id="0ffe1e0a-7409-4cdb-9443-15342d8816cf" variableName="name"/>
+		<set-variable value="#[attributes.queryParams.salary]" doc:name="Set Variable" doc:id="2a257c99-3241-470e-bcd8-a5c1d4dd45bc" variableName="salary"/>
+		<db:select doc:name="Select" doc:id="5feeb732-8e55-4318-8b16-1be4ee31478b" config-ref="Database_Config1">
+			<db:sql ><![CDATA[select status from hr where employeeId=:employeeId;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	employeeId:vars.employeeId
+}]]]></db:input-parameters>
+		</db:select>
 		<choice doc:name="Choice" doc:id="11654225-8834-41e0-adb9-ab46419a1ff6" >
-			<when expression='#[attributes.queryParams.name=="yes"]'>
+			<when expression='#[payload[0].status=="Active"]'>
 				<ee:transform doc:name="Transform Message" doc:id="5605be3f-e741-47c3-968e-16c3bf082981">
 					<ee:message>
 						<ee:set-payload><![CDATA[%dw 2.0
-output application/java
+output application/json
 ---
 {
-	employee_id:attributes.queryParams.employee_id as Number,
-	name:attributes.queryParams.name,
-	salary:attributes.queryParams.salary as Number,
-	status:attributes.queryParams.status
+	employeeId:vars.employeeId,
+	name:vars.name,
+	salary:vars.salary as Number,
+	status:"Active"
 }]]></ee:set-payload>
 					</ee:message>
 				</ee:transform>
-				<db:insert doc:name="Insert" doc:id="1a75a8bf-58e8-489d-b9b9-843036e05a19" config-ref="Database_Config">
-					<db:sql ><![CDATA[insert into payroll(employee_id,name,salary,status) values(:employee_id,:name,:salary,:status)]]></db:sql>
+				<db:insert doc:name="Insert" doc:id="1a75a8bf-58e8-489d-b9b9-843036e05a19" config-ref="Database_Config1">
+					<db:sql ><![CDATA[insert into payroll(employeeId,name,salary,status) values(:employeeId,:name,:salary,:status);]]></db:sql>
 					<db:input-parameters ><![CDATA[#[payload]]]></db:input-parameters>
 				</db:insert>
 				<ee:transform doc:name="Transform Message" doc:id="60cf6dc0-1355-4a52-989e-d9f0fd83e550" >
@@ -50,12 +62,12 @@ output application/json
 				</ee:transform>
 			</when>
 			<otherwise>
-				<set-variable value="500" doc:name="Set Variable" doc:id="6458ed38-823b-4d90-a6fb-7be2a9b380d8" variableName="Hr_status"/>
-				<raise-error doc:name="Raise error" doc:id="53868ab7-91a3-46ce-8856-871838bf35c2" type="APP:HR_REJECTED" description="Employee rejected by HR" />
+				<set-variable value="400" doc:name="Set Variable" doc:id="0a6d4337-8a2a-4e61-a258-25276507c17e" variableName="hr"/>
+				<raise-error doc:name="Raise error" doc:id="f214ffc4-d6e8-475b-9580-7b362404c95c" type="APP:HR_REJECTED" description="Rejected"/>
 			</otherwise>
 		</choice>
 		<error-handler>
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="575b6a83-dc10-45a3-92f2-d97dd037e3cc" >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="575b6a83-dc10-45a3-92f2-d97dd037e3cc" type="APP:HR_REJECTED">
 				<ee:transform doc:name="Transform Message" doc:id="e47bffdc-f840-413e-a13d-0c00cb39a6d0">
 					<ee:message>
 						<ee:set-payload><![CDATA[%dw 2.0
@@ -64,6 +76,42 @@ output application/json
 {
 	"status":400,
 	"message":"rejected"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f2f049b3-3428-4270-9e32-adb0217bb7eb" type="DB:CONNECTIVITY">
+				<ee:transform doc:name="Transform Message" doc:id="53804a29-b839-44f2-9733-bc472007db8c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"message":"Issue Connectivity"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="62b11399-c9d3-4762-a306-c37f57a3f321" type="DB:BAD_SQL_SYNTAX">
+				<ee:transform doc:name="Transform Message" doc:id="bc94fc75-5f41-4a38-b115-6d1a3482ef3b" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"message":"Issue Sql Syntax"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="9f5e1154-ed13-4318-a65a-5ed6edc73ef0" type="DB:QUERY_EXECUTION">
+				<ee:transform doc:name="Transform Message" doc:id="df30ae6f-c3f2-4833-ab37-29c51934a679" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"message":"Issue In Query Execution"
 }]]></ee:set-payload>
 					</ee:message>
 				</ee:transform>
