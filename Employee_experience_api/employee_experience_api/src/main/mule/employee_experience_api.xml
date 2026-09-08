@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="d361c650-363b-407f-b64b-8144d3ad94a6" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="Trisha_02" database="emp" />
+	</db:config>
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="c5f0aaa1-0db0-471c-8dd5-85911120cafa" >
+		<http:listener-connection host="0.0.0.0" port="8093" />
+	</http:listener-config>
+	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="10acd644-8a1a-426d-90b3-bbc7bb1a6540" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="a6991dea-77c9-4fa2-aeb8-9ef272f4559b" >
+		<http:request-connection host="localhost" port="8082" />
+	</http:request-config>
+	<db:config name="Database_Config1" doc:name="Database Config" doc:id="8c9efadd-2df9-4e45-ab7a-a82fe58ad32f" >
+		<db:my-sql-connection host="mysql-99dcb85-mulesoft123.h.aivencloud.com" port="28418" user="avnadmin" password="AVNS_lShfQP0nFd2VDeeuPO9" database="employee" />
+	</db:config>
+	<flow name="employee_experience_apiFlow" doc:id="80c92cc3-cd49-40be-aa6c-bbcf491ca574" >
+		<http:listener doc:name="Listener" doc:id="74df575b-332d-4df1-9c18-6ce30e500d39" config-ref="HTTP_Listener_config" path="/emp"/>
+		<set-variable value="#[uuid()]" doc:name="Set Variable" doc:id="947b44fb-8b1f-4168-b443-5a68e2043471" variableName="correlationId"/>
+		<validation:is-true doc:name="Is true" doc:id="954d6deb-0836-449f-ae2e-45d0b1a4f04a" config-ref="Validation_Config" message='#["Missing required field(s): " ++ ([if (payload.employeeId == null) "employeeId" else null, if (payload.firstName == null) "firstName" else null, if (payload.lastName == null) "lastName" else null, if (payload.email == null) "email" else null, if (payload.department == null) "department" else null, if (payload.employmentType == null) "employmentType" else null, if (payload.joiningDate == null) "joiningDate" else null] filter ($ != null) joinBy ", ")]' expression="#[payload.employeeId != null and payload.firstName != null and payload.lastName != null and payload.email != null and payload.department != null and payload.employmentType != null and payload.joiningDate != null]"/>
+		<validation:is-email doc:name="Is email" doc:id="ff0c5825-3fcf-4d7c-8e88-520741ac7e3b" email="#[payload.email]"/>
+		<db:insert doc:name="Insert" doc:id="f4fc2e94-7e28-4f95-a319-8e2991494f50" config-ref="Database_Config1">
+			<db:sql ><![CDATA[INSERT INTO employee_requests (employeeId, firstName, lastName, email, department, employmentType, joiningDate) 
+VALUES (:id, :fname, :lname, :email, :dept, :etype, :jdate)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+  "id": payload.employeeId,
+  "fname": payload.firstName,
+  "lname": payload.lastName,
+  "email": payload.email,
+  "dept": payload.department,
+  "etype": payload.employmentType,
+  "jdate": payload.joiningDate
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="a90112e4-cf86-47ef-a093-2ccc10bedc08" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "status": "Success",
+  "message": "Experience API validation complete. Ready for integration.",
+  "correlationId": vars.correlationId,
+  "employeeId": payload.employeeId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
