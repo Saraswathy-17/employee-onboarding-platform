@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="0a1338ac-76c6-41e8-a61f-b6deb0d4bc00" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="c7aeb16d-9013-4ebd-a143-176659e4c0f1" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="770d06d2-0650-4762-9bfc-0c599da56ed1" />
+	<http:request-config name="HTTP_Request_configuration1" doc:name="HTTP Request configuration" doc:id="81bdbce4-3f9b-4a83-aeb6-066d8c8fed58" >
+		<http:request-connection host="localhost" port="8084" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration2" doc:name="HTTP Request configuration" doc:id="988f4cf1-90ad-4c96-8f74-5ccf63702629" >
+		<http:request-connection host="localhost" port="8084" />
+	</http:request-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="9976a095-e39c-4513-8f3f-3565f8f77d34" >
+		<db:my-sql-connection host="mysql-99dcb85-mulesoft123.h.aivencloud.com" port="28418" user="avnadmin" password="AVNS_lShfQP0nFd2VDeeuPO9" database="employee" >
+			<db:connection-properties >
+				<db:connection-property key="useSSL" value="true" />
+				<db:connection-property key="requireSSL" value="true" />
+				<db:connection-property key="verifyServerCertificate" value="false" />
+				<db:connection-property key="driverClassName" value="com.mysql.cj.jdbc.Driver" />
+			</db:connection-properties>
+		</db:my-sql-connection>
+	</db:config>
+	<db:config name="Database_Config1" doc:name="Database Config" doc:id="fdbdec1b-27a5-405d-96cc-4b1b9fe95ab8" >
+		<db:my-sql-connection host="mysql-99dcb85-mulesoft123.h.aivencloud.com" port="28418" user="avnadmin" password="AVNS_lShfQP0nFd2VDeeuPO9" database="employee" />
+	</db:config>
+	<os:object-store name="Object_store1" doc:name="Object store" doc:id="32369ec3-48d6-4560-b382-39e96ba1feaf" />
+	<db:config name="Database_Config2" doc:name="Database Config" doc:id="2b38a151-b0e2-4bf8-8929-4e34687556df" >
+		<db:my-sql-connection host="mysql-99dcb85-mulesoft123.h.aivencloud.com" port="28418" user="avnadmin" password="AVNS_lShfQP0nFd2VDeeuPO9" database="employee" />
+	</db:config>
+	<flow name="employee-process-api-v2Flow" doc:id="dec6209f-ce42-4982-b7fa-22b258c7fbc3" >
+		<http:listener doc:name="Listener" doc:id="0e39a0d0-bcbc-4c33-a7cb-873a75513d2b" config-ref="HTTP_Listener_config" path="/onboarding/process">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="71ae358f-8dfc-4229-a845-681cb861a650" variableName="originalRequest"/>
+		<db:select doc:name="Select" doc:id="d85f045c-ee20-482f-bff5-870beb178311" config-ref="Database_Config2">
+			<db:sql><![CDATA[  SELECT * FROM employee_requests WHERE employeeId = :id]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	id: vars.employeeId
+}]]]></db:input-parameters>
+		</db:select>
+		<os:contains doc:name="Contains" doc:id="2571ef16-57a2-4d3b-8199-7012b58d6547" key="#[vars.originalRequest.employeeId]" objectStore="Object_store1" target="isDuplicate"/>
+		<choice doc:name="Choice" doc:id="4c8a977f-e0ee-4e46-8efc-877f37d85bbe" >
+			<when expression="#[vars.isDuplicate == false]">
+				<raise-error doc:name="Raise error" doc:id="e8fc401c-db28-45f3-83fa-85bc10b9bd05" type="APP:DUPLICATE_EMPLOYEE" description="Employee already exists"/>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Transform Message" doc:id="c0e6bf61-f078-44f4-910a-7eb02ab5b5e7" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: "OK",
+  employeeId: vars.originalRequest.employeeId,
+  message: "Employee is new",
+  correlationId: vars.correlationId
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>
